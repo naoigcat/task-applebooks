@@ -1,0 +1,22 @@
+[tasks.build]
+description = "Build the release executable"
+quiet = true
+run = "swift build -c release"
+sources = ["Package.swift", "Sources/**/*.swift"]
+outputs = [".build/release/apple-books"]
+
+[tasks.export]
+description = "Export Apple Books collections"
+depends = ["build"]
+quiet = true
+raw = true
+raw_args = true
+run = ".build/release/apple-books export"
+
+[tasks.enqueue_uncategorized]
+description = "Add uncategorized purchased books to a queue collection"
+depends = ["build"]
+quiet = true
+raw = true
+raw_args = true
+run = ".build/release/apple-books enqueue_uncategorized"
