@@ -1,9 +1,7 @@
 [tasks.build]
 description = "Build the release executable"
 quiet = true
-run = "swift build -c release"
-sources = ["Package.swift", "Sources/**/*.swift"]
-outputs = [".build/release/apple-books"]
+run = "swift build --disable-sandbox -c release"
 
 [tasks.export]
 description = "Export Apple Books collections"
