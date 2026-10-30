@@ -196,6 +196,7 @@ struct LibrarySchema {
     let collectionTable: String
     let collectionID: String
     let collectionTitle: String
+    let collectionDeletedFlag: String?
     let collectionEntity: String?
     let collectionVersion: String?
     let memberTable: String
@@ -235,6 +236,7 @@ struct LibrarySchema {
             collectionTable: collectionTable,
             collectionID: try requiredColumn(collectionTable, collectionColumns, [.exact("Z_PK")]),
             collectionTitle: try firstColumn(collectionTable, collectionColumns, [.exact("ZTITLE"), .exact("ZNAME")]),
+            collectionDeletedFlag: firstColumn(collectionColumns, [.exact("ZDELETEDFLAG")]),
             collectionEntity: firstColumn(collectionColumns, [.exact("Z_ENT")]),
             collectionVersion: firstColumn(collectionColumns, [.exact("Z_OPT")]),
             memberTable: memberTable,
@@ -255,6 +257,11 @@ struct LibrarySchema {
 
     func quote(_ identifier: String) -> String {
         "\"\(identifier.replacingOccurrences(of: "\"", with: "\"\""))\""
+    }
+
+    var activeCollectionCondition: String {
+        guard let collectionDeletedFlag else { return "1" }
+        return "COALESCE(c.\(quote(collectionDeletedFlag)), 0) = 0"
     }
 
     private static func findTable(
@@ -397,6 +404,7 @@ struct CollectionReader {
         INNER JOIN \(schema.quote(schema.assetTable)) a
           ON a.\(schema.quote(schema.assetID)) = m.\(schema.quote(schema.memberAssetID))
         WHERE c.\(schema.quote(schema.collectionTitle)) IS NOT NULL
+          AND \(schema.activeCollectionCondition)
         ORDER BY LOWER(c.\(schema.quote(schema.collectionTitle))), \(orderColumn)
         """
     }
@@ -602,6 +610,7 @@ final class QueueUpdater {
         WHERE m.\(schema.quote(schema.memberAssetID)) = \(assetExpression)
           AND c.\(schema.quote(schema.collectionTitle)) IS NOT NULL
           AND c.\(schema.quote(schema.collectionTitle)) NOT IN (\(placeholders))
+          AND \(schema.activeCollectionCondition)
         """
     }
 
