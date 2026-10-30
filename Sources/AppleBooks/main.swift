@@ -659,9 +659,11 @@ final class QueueUpdater {
     }
 
     private func insertMembers(_ schema: LibrarySchema, queueID: Int64, assetIDs: [Int64]) throws {
+        let localModDate = try findColumns(schema.memberTable, patterns: [.exact("ZLOCALMODDATE")]).first
         try validateInsertableColumns(schema.memberTable, provided: [
             schema.memberPK, schema.memberCollectionID, schema.memberAssetID,
-            schema.memberEntity, schema.memberVersion, schema.memberOrder
+            schema.memberEntity, schema.memberVersion, schema.memberOrder,
+            schema.memberAssetIdentifier, localModDate
         ])
         let primaryKeys = try reservePrimaryKeys(schema, table: schema.memberTable, column: schema.memberPK, count: assetIDs.count)
         let firstOrder = try nextMemberOrder(schema, queueID: queueID)
@@ -679,6 +681,21 @@ final class QueueUpdater {
             }
             if let orderColumn = schema.memberOrder {
                 attributes.append((orderColumn, .integer(firstOrder + Int64(index))))
+            }
+            if let memberIdentifier = schema.memberAssetIdentifier {
+                guard let assetIdentifier = schema.assetIdentifier,
+                      let identifier = try db.query("""
+                        SELECT \(schema.quote(assetIdentifier)) AS identifier
+                        FROM \(schema.quote(schema.assetTable))
+                        WHERE \(schema.quote(schema.assetID)) = ?
+                        """, [.integer(assetID)]).first?.string("identifier"),
+                      !identifier.isEmpty else {
+                    throw SchemaError(message: "Missing asset identifier for library asset \(assetID).")
+                }
+                attributes.append((memberIdentifier, .text(identifier)))
+            }
+            if let localModDate {
+                attributes.append((localModDate, .real(Date().timeIntervalSinceReferenceDate)))
             }
             try insertRow(schema, table: schema.memberTable, attributes: attributes)
         }
