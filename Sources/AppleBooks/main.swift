@@ -203,6 +203,7 @@ struct LibrarySchema {
     let memberPK: String
     let memberCollectionID: String
     let memberAssetID: String
+    let memberAssetIdentifier: String?
     let memberOrder: String?
     let memberEntity: String?
     let memberVersion: String?
@@ -243,6 +244,7 @@ struct LibrarySchema {
             memberPK: try requiredColumn(memberTable, memberColumns, [.exact("Z_PK")]),
             memberCollectionID: try firstColumn(memberTable, memberColumns, [.exact("ZCOLLECTION"), .contains("COLLECTION")]),
             memberAssetID: try firstColumn(memberTable, memberColumns, [.exact("ZLIBRARYASSET"), .exact("ZASSET"), .contains("ASSET")]),
+            memberAssetIdentifier: firstColumn(memberColumns, [.exact("ZASSETID"), .exact("ZBOOKID")]),
             memberOrder: firstColumn(memberColumns, [.exact("ZORDER"), .exact("ZSORTKEY"), .contains("ORDER")]),
             memberEntity: firstColumn(memberColumns, [.exact("Z_ENT")]),
             memberVersion: firstColumn(memberColumns, [.exact("Z_OPT")]),
@@ -360,11 +362,12 @@ struct CollectionReader {
             }
             if Self.ignoredCollectionTitles.contains(title) { continue }
 
-            let books = rows.map { row in
-                Book(
+            let books = rows.compactMap { row -> Book? in
+                guard row.int64("member_pk") != nil else { return nil }
+                return Book(
                     title: row.string("asset_title"),
                     author: displayAuthor(row.string("asset_author"), row.string("asset_sort_author")),
-                    identifier: row.string("asset_identifier"),
+                    identifier: row.string("asset_identifier") ?? row.string("member_asset_identifier"),
                     order: row.int64("member_order")
                 )
             }
@@ -378,13 +381,14 @@ struct CollectionReader {
         var selects = [
             "c.\(schema.quote(schema.collectionID)) AS \(schema.quote("collection_id"))",
             "c.\(schema.quote(schema.collectionTitle)) AS \(schema.quote("collection_title"))",
-            "a.\(schema.quote(schema.assetID)) AS \(schema.quote("asset_pk"))"
+            "m.\(schema.quote(schema.memberPK)) AS \(schema.quote("member_pk"))"
         ]
         let optional: [(String, String?, String)] = [
             ("a", schema.assetTitle, "asset_title"),
             ("a", schema.assetAuthor, "asset_author"),
             ("a", schema.assetSortAuthor, "asset_sort_author"),
             ("a", schema.assetIdentifier, "asset_identifier"),
+            ("m", schema.memberAssetIdentifier, "member_asset_identifier"),
             ("m", schema.memberOrder, "member_order")
         ]
         selects += optional.compactMap { tableAlias, column, alias in
@@ -399,9 +403,9 @@ struct CollectionReader {
         return """
         SELECT \(selects.joined(separator: ",\n          "))
         FROM \(schema.quote(schema.collectionTable)) c
-        INNER JOIN \(schema.quote(schema.memberTable)) m
+        LEFT JOIN \(schema.quote(schema.memberTable)) m
           ON m.\(schema.quote(schema.memberCollectionID)) = c.\(schema.quote(schema.collectionID))
-        INNER JOIN \(schema.quote(schema.assetTable)) a
+        LEFT JOIN \(schema.quote(schema.assetTable)) a
           ON a.\(schema.quote(schema.assetID)) = m.\(schema.quote(schema.memberAssetID))
         WHERE c.\(schema.quote(schema.collectionTitle)) IS NOT NULL
           AND \(schema.activeCollectionCondition)
