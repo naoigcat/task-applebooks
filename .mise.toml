@@ -11,10 +11,10 @@ raw = true
 raw_args = true
 run = ".build/release/apple-books export"
 
-[tasks.enqueue_uncategorized]
+[tasks.enqueue]
 description = "Add uncategorized purchased books to a queue collection"
 depends = ["build"]
 quiet = true
 raw = true
 raw_args = true
-run = ".build/release/apple-books enqueue_uncategorized"
+run = ".build/release/apple-books enqueue"

@@ -810,7 +810,7 @@ enum AppleBooksDatabase {
     }
 }
 
-enum Command: Equatable { case export, enqueueUncategorized }
+enum Command: Equatable { case export, enqueue }
 
 struct CLIOptions {
     var command: Command = .export
@@ -831,7 +831,7 @@ func parseOptions(_ arguments: [String]) throws -> CLIOptions {
     if let first = arguments.first {
         switch first {
         case "export": options.command = .export; arguments.removeFirst()
-        case "enqueue_uncategorized": options.command = .enqueueUncategorized; arguments.removeFirst()
+        case "enqueue": options.command = .enqueue; arguments.removeFirst()
         case "--help", "-h": printUsage(); exit(0)
         default: break
         }
@@ -861,15 +861,15 @@ func parseOptions(_ arguments: [String]) throws -> CLIOptions {
         index += 1
     }
 
-    if options.command == .export && options.dryRun { throw UsageError(message: "--dry-run is only valid for enqueue_uncategorized.") }
-    if options.command == .enqueueUncategorized && options.json { throw UsageError(message: "--json is only valid for export.") }
+    if options.command == .export && options.dryRun { throw UsageError(message: "--dry-run is only valid for enqueue.") }
+    if options.command == .enqueue && options.json { throw UsageError(message: "--json is only valid for export.") }
     return options
 }
 
 func printUsage() {
     print("""
     Usage: apple-books [export] [options]
-           apple-books enqueue_uncategorized [options]
+           apple-books enqueue [options]
 
     Options:
       -d, --database PATH  BKLibrary SQLite database path
@@ -898,7 +898,7 @@ func run(_ options: CLIOptions) throws {
             return try options.json ? Formatter.json(collections) : Formatter.text(collections)
         }
         print(output)
-    case .enqueueUncategorized:
+    case .enqueue:
         let db = try AppleBooksDatabase.writable(databasePath)
         let result = try QueueUpdater(db: db, databasePath: databasePath)
             .addUncategorized(backup: options.backup, dryRun: options.dryRun)

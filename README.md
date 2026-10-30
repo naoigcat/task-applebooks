@@ -27,9 +27,9 @@ If --database is omitted, the newest BKLibrary*.sqlite file in the supported App
 Adds purchased books that are not in any My Collections collection to Queue_yyyymmddHHMMSS. Books that are only in automatic collections such as Books, Downloaded, Library, and Want to Read are treated as uncategorized.
 
 ``` sh
-mise run enqueue_uncategorized
-mise run enqueue_uncategorized --dry-run
-mise run enqueue_uncategorized --no-backup
+mise run enqueue
+mise run enqueue --dry-run
+mise run enqueue --no-backup
 ```
 
 Backups are created before updates by default. Run the update command only when Apple Books-related processes are not writing to the database.
