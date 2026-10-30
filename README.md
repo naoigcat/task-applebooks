@@ -32,4 +32,4 @@ mise run enqueue --dry-run
 mise run enqueue --no-backup
 ```
 
-Backups are created before updates by default. Run the update command only when Apple Books-related processes are not writing to the database.
+Backups are created before updates by default. Quit Books before running the update command, and reopen it afterward to reload the collections. Run the update command only when Apple Books-related processes are not writing to the database.
