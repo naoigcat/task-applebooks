@@ -537,10 +537,16 @@ final class QueueUpdater {
             throw SchemaError(message: "\(title) collection already exists. Retry after the next second.")
         }
 
+        // Core Data defaults are not SQLite defaults; raw inserts must supply them.
+        let metadataColumns = try findColumns(schema.collectionTable, patterns: [
+            .exact("ZCOLLECTIONID"), .exact("ZDELETEDFLAG"), .exact("ZHIDDEN"),
+            .exact("ZPLACEHOLDER"), .exact("ZSORTKEY"),
+            .exact("ZLASTMODIFICATION"), .exact("ZLOCALMODDATE")
+        ])
         try validateInsertableColumns(schema.collectionTable, provided: [
             schema.collectionID, schema.collectionTitle, schema.collectionEntity,
             schema.collectionVersion
-        ])
+        ] + metadataColumns.map(Optional.some))
         let primaryKey = try reservePrimaryKeys(schema, table: schema.collectionTable, column: schema.collectionID, count: 1)[0]
         var attributes: [(String, SQLiteValue)] = [
             (schema.collectionID, .integer(primaryKey)),
@@ -551,6 +557,19 @@ final class QueueUpdater {
         }
         if let versionColumn = schema.collectionVersion {
             attributes.append((versionColumn, .integer(1)))
+        }
+        let now = Date().timeIntervalSinceReferenceDate
+        for column in metadataColumns {
+            let value: SQLiteValue
+            switch column.uppercased() {
+            case "ZCOLLECTIONID": value = .text(UUID().uuidString)
+            case "ZLASTMODIFICATION", "ZLOCALMODDATE": value = .real(now)
+            case "ZSORTKEY":
+                let row = try db.query("SELECT MAX(\(schema.quote(column))) AS max_sort FROM \(schema.quote(schema.collectionTable))").first
+                value = .integer(max(row?.int64("max_sort") ?? 0, 0) + 10_000)
+            default: value = .integer(0)
+            }
+            attributes.append((column, value))
         }
         try insertRow(schema, table: schema.collectionTable, attributes: attributes)
         return primaryKey
