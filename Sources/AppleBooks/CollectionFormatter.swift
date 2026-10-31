@@ -1,6 +1,6 @@
 import Foundation
 
-enum Formatter {
+enum CollectionFormatter {
     static func text(_ collections: [BookCollection]) -> String {
         collections.map { collection in
             var lines = ["\(collection.title) (\(collection.books.count) books)"]

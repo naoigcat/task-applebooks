@@ -2,7 +2,6 @@ import Foundation
 
 struct PrimaryKeyEntity {
     let entity: Int64
-    let name: String
     let max: Int64
 }
 
@@ -299,7 +298,7 @@ final class QueueUpdater {
                 return nil
             }
             guard normalizedEntityName(name) == normalizedTableName(table) else { return nil }
-            return PrimaryKeyEntity(entity: entity, name: name, max: max)
+            return PrimaryKeyEntity(entity: entity, max: max)
         }.first
     }
 

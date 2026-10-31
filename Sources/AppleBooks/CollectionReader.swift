@@ -5,16 +5,6 @@ struct Book: Encodable {
     let author: String?
     let identifier: String?
     let order: Int64?
-
-    private enum CodingKeys: String, CodingKey { case title, author, identifier, order }
-
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        if let title { try container.encode(title, forKey: .title) }
-        if let author { try container.encode(author, forKey: .author) }
-        if let identifier { try container.encode(identifier, forKey: .identifier) }
-        if let order { try container.encode(order, forKey: .order) }
-    }
 }
 
 struct BookCollection: Encodable {

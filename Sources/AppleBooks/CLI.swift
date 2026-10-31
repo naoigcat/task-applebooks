@@ -86,7 +86,7 @@ func run(_ options: CLIOptions) throws {
         let output = try AppleBooksDatabase.withConsistentRead(databasePath) { db in
             let collections = try CollectionReader(db: db).collections()
             guard !collections.isEmpty else { throw UsageError(message: "No collections were found.") }
-            return try options.json ? Formatter.json(collections) : Formatter.text(collections)
+            return try options.json ? CollectionFormatter.json(collections) : CollectionFormatter.text(collections)
         }
         print(output)
     case .enqueue:
