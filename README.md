@@ -33,3 +33,14 @@ mise run enqueue --no-backup
 ```
 
 Backups are created before updates by default. Quit Books before running the update command, and reopen it afterward to reload the collections. Run the update command only when Apple Books-related processes are not writing to the database.
+
+## Source Layout
+
+All executable sources are in `Sources/AppleBooks`:
+
+- `main.swift` and `CLI.swift`: entry point, arguments, command dispatch, and error reporting.
+- `SQLite.swift`: SQLite values, statements, identifier quoting, and table metadata.
+- `AppleBooksDatabase.swift`: database discovery, snapshots, and connection setup.
+- `LibrarySchema.swift`: Apple Books table and column detection.
+- `CollectionReader.swift` and `CollectionFormatter.swift`: collection models, queries, and text/JSON output.
+- `QueueUpdater.swift`: uncategorized book selection, backups, and transactional queue updates.
