@@ -25,12 +25,6 @@ enum ColumnPattern: CustomStringConvertible {
     }
 }
 
-struct ColumnInfo {
-    let name: String
-    let notNull: Bool
-    let defaultValue: SQLiteValue
-}
-
 struct LibrarySchema {
     let collectionTable: String
     let collectionID: String
@@ -68,21 +62,21 @@ struct LibrarySchema {
             $0.uppercased().contains("LIBRARYASSET")
         })
 
-        let collectionColumns = try tableInfo(db, collectionTable).map(\.name)
-        let memberColumns = try tableInfo(db, memberTable).map(\.name)
-        let assetColumns = try tableInfo(db, assetTable).map(\.name)
+        let collectionColumns = try db.tableInfo(collectionTable).map(\.name)
+        let memberColumns = try db.tableInfo(memberTable).map(\.name)
+        let assetColumns = try db.tableInfo(assetTable).map(\.name)
 
         return LibrarySchema(
             collectionTable: collectionTable,
             collectionID: try requiredColumn(collectionTable, collectionColumns, [.exact("Z_PK")]),
-            collectionTitle: try firstColumn(collectionTable, collectionColumns, [.exact("ZTITLE"), .exact("ZNAME")]),
+            collectionTitle: try requiredColumn(collectionTable, collectionColumns, [.exact("ZTITLE"), .exact("ZNAME")]),
             collectionDeletedFlag: firstColumn(collectionColumns, [.exact("ZDELETEDFLAG")]),
             collectionEntity: firstColumn(collectionColumns, [.exact("Z_ENT")]),
             collectionVersion: firstColumn(collectionColumns, [.exact("Z_OPT")]),
             memberTable: memberTable,
             memberPK: try requiredColumn(memberTable, memberColumns, [.exact("Z_PK")]),
-            memberCollectionID: try firstColumn(memberTable, memberColumns, [.exact("ZCOLLECTION"), .contains("COLLECTION")]),
-            memberAssetID: try firstColumn(memberTable, memberColumns, [.exact("ZLIBRARYASSET"), .exact("ZASSET"), .contains("ASSET")]),
+            memberCollectionID: try requiredColumn(memberTable, memberColumns, [.exact("ZCOLLECTION"), .contains("COLLECTION")]),
+            memberAssetID: try requiredColumn(memberTable, memberColumns, [.exact("ZLIBRARYASSET"), .exact("ZASSET"), .contains("ASSET")]),
             memberAssetIdentifier: firstColumn(memberColumns, [.exact("ZASSETID"), .exact("ZBOOKID")]),
             memberOrder: firstColumn(memberColumns, [.exact("ZORDER"), .exact("ZSORTKEY"), .contains("ORDER")]),
             memberEntity: firstColumn(memberColumns, [.exact("Z_ENT")]),
@@ -96,13 +90,9 @@ struct LibrarySchema {
         )
     }
 
-    func quote(_ identifier: String) -> String {
-        "\"\(identifier.replacingOccurrences(of: "\"", with: "\"\""))\""
-    }
-
     var activeCollectionCondition: String {
         guard let collectionDeletedFlag else { return "1" }
-        return "COALESCE(c.\(quote(collectionDeletedFlag)), 0) = 0"
+        return "COALESCE(c.\(SQLiteDatabase.quote(collectionDeletedFlag)), 0) = 0"
     }
 
     private static func findTable(
@@ -116,14 +106,6 @@ struct LibrarySchema {
         return table
     }
 
-    private static func requiredColumn(
-        _ table: String,
-        _ columns: [String],
-        _ patterns: [ColumnPattern]
-    ) throws -> String {
-        try firstColumn(table, columns, patterns)
-    }
-
     private static func firstColumn(
         _ columns: [String],
         _ patterns: [ColumnPattern]
@@ -134,7 +116,7 @@ struct LibrarySchema {
         return nil
     }
 
-    private static func firstColumn(
+    private static func requiredColumn(
         _ table: String,
         _ columns: [String],
         _ patterns: [ColumnPattern]
@@ -144,17 +126,5 @@ struct LibrarySchema {
             throw SchemaError(message: "Required column was not found in \(table): \(descriptions)")
         }
         return column
-    }
-
-    private static func tableInfo(_ db: SQLiteDatabase, _ table: String) throws -> [ColumnInfo] {
-        let quoted = "\"\(table.replacingOccurrences(of: "\"", with: "\"\""))\""
-        return try db.query("PRAGMA table_info(\(quoted))").compactMap { row in
-            guard let name = row.string("name") else { return nil }
-            return ColumnInfo(
-                name: name,
-                notNull: row.int64("notnull") == 1,
-                defaultValue: row["dflt_value"] ?? .null
-            )
-        }
     }
 }

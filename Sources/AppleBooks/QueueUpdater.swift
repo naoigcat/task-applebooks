@@ -60,9 +60,9 @@ final class QueueUpdater {
 
     private func createQueueCollection(_ schema: LibrarySchema, title: String) throws -> Int64 {
         let existing = try db.query("""
-            SELECT \(schema.quote(schema.collectionID)) AS id
-            FROM \(schema.quote(schema.collectionTable))
-            WHERE \(schema.quote(schema.collectionTitle)) = ?
+            SELECT \(SQLiteDatabase.quote(schema.collectionID)) AS id
+            FROM \(SQLiteDatabase.quote(schema.collectionTable))
+            WHERE \(SQLiteDatabase.quote(schema.collectionTitle)) = ?
             LIMIT 1
             """, [.text(title)])
         if !existing.isEmpty {
@@ -97,7 +97,7 @@ final class QueueUpdater {
             case "ZCOLLECTIONID": value = .text(UUID().uuidString)
             case "ZLASTMODIFICATION", "ZLOCALMODDATE": value = .real(now)
             case "ZSORTKEY":
-                let row = try db.query("SELECT MAX(\(schema.quote(column))) AS max_sort FROM \(schema.quote(schema.collectionTable))").first
+                let row = try db.query("SELECT MAX(\(SQLiteDatabase.quote(column))) AS max_sort FROM \(SQLiteDatabase.quote(schema.collectionTable))").first
                 value = .integer(max(row?.int64("max_sort") ?? 0, 0) + 10_000)
             default: value = .integer(0)
             }
@@ -111,8 +111,8 @@ final class QueueUpdater {
         let ignored = CollectionReader.ignoredCollectionTitles
         let placeholders = Array(repeating: "?", count: ignored.count).joined(separator: ", ")
         let titleOrder = schema.assetTitle.map {
-            "LOWER(a.\(schema.quote($0)))"
-        } ?? "a.\(schema.quote(schema.assetID))"
+            "LOWER(a.\(SQLiteDatabase.quote($0)))"
+        } ?? "a.\(SQLiteDatabase.quote(schema.assetID))"
 
         let relatedColumns = try findColumns(schema.assetTable, patterns: [
             .exact("ZSERIESCONTAINER"),
@@ -122,22 +122,22 @@ final class QueueUpdater {
         let relatedConditions = relatedColumns.map { column in
             """
             AND NOT EXISTS (
-              \(realCollectionMemberQuery(schema, assetExpression: "a.\(schema.quote(column))", placeholders: placeholders))
+              \(realCollectionMemberQuery(schema, assetExpression: "a.\(SQLiteDatabase.quote(column))", placeholders: placeholders))
             )
             """
         }.joined(separator: "\n")
         let purchaseCondition = try purchasedAssetCondition(schema)
 
         let sql = """
-        SELECT a.\(schema.quote(schema.assetID)) AS id
-        FROM \(schema.quote(schema.assetTable)) a
+        SELECT a.\(SQLiteDatabase.quote(schema.assetID)) AS id
+        FROM \(SQLiteDatabase.quote(schema.assetTable)) a
         WHERE NOT EXISTS (
-          \(realCollectionMemberQuery(schema, assetExpression: "a.\(schema.quote(schema.assetID))", placeholders: placeholders))
+          \(realCollectionMemberQuery(schema, assetExpression: "a.\(SQLiteDatabase.quote(schema.assetID))", placeholders: placeholders))
         )
         \(relatedConditions)
         \(try assetExclusionConditions(schema))
         AND \(purchaseCondition)
-        ORDER BY \(titleOrder), a.\(schema.quote(schema.assetID))
+        ORDER BY \(titleOrder), a.\(SQLiteDatabase.quote(schema.assetID))
         """
 
         var values: [SQLiteValue] = []
@@ -159,12 +159,12 @@ final class QueueUpdater {
     ) -> String {
         """
         SELECT 1
-        FROM \(schema.quote(schema.memberTable)) m
-        INNER JOIN \(schema.quote(schema.collectionTable)) c
-          ON c.\(schema.quote(schema.collectionID)) = m.\(schema.quote(schema.memberCollectionID))
-        WHERE m.\(schema.quote(schema.memberAssetID)) = \(assetExpression)
-          AND c.\(schema.quote(schema.collectionTitle)) IS NOT NULL
-          AND c.\(schema.quote(schema.collectionTitle)) NOT IN (\(placeholders))
+        FROM \(SQLiteDatabase.quote(schema.memberTable)) m
+        INNER JOIN \(SQLiteDatabase.quote(schema.collectionTable)) c
+          ON c.\(SQLiteDatabase.quote(schema.collectionID)) = m.\(SQLiteDatabase.quote(schema.memberCollectionID))
+        WHERE m.\(SQLiteDatabase.quote(schema.memberAssetID)) = \(assetExpression)
+          AND c.\(SQLiteDatabase.quote(schema.collectionTitle)) IS NOT NULL
+          AND c.\(SQLiteDatabase.quote(schema.collectionTitle)) NOT IN (\(placeholders))
           AND \(schema.activeCollectionCondition)
         """
     }
@@ -173,7 +173,7 @@ final class QueueUpdater {
         try findColumns(schema.assetTable, patterns: [
             .exact("ZISHIDDEN"), .exact("ZISSAMPLE"), .exact("ZISEPHEMERAL"),
             .exact("ZISSUPPLEMENTALCONTENT")
-        ]).map { "AND COALESCE(a.\(schema.quote($0)), 0) = 0" }.joined(separator: "\n")
+        ]).map { "AND COALESCE(a.\(SQLiteDatabase.quote($0)), 0) = 0" }.joined(separator: "\n")
     }
 
     private func purchasedAssetCondition(_ schema: LibrarySchema) throws -> String {
@@ -183,9 +183,9 @@ final class QueueUpdater {
         }
         let conditions = columns.map { column in
             if column.uppercased() == "ZCANREDOWNLOAD" {
-                return "COALESCE(a.\(schema.quote(column)), 0) = 1"
+                return "COALESCE(a.\(SQLiteDatabase.quote(column)), 0) = 1"
             }
-            return "a.\(schema.quote(column)) IS NOT NULL"
+            return "a.\(SQLiteDatabase.quote(column)) IS NOT NULL"
         }
         return "(\(conditions.joined(separator: " OR ")))"
     }
@@ -217,9 +217,9 @@ final class QueueUpdater {
             if let memberIdentifier = schema.memberAssetIdentifier {
                 guard let assetIdentifier = schema.assetIdentifier,
                       let identifier = try db.query("""
-                        SELECT \(schema.quote(assetIdentifier)) AS identifier
-                        FROM \(schema.quote(schema.assetTable))
-                        WHERE \(schema.quote(schema.assetID)) = ?
+                        SELECT \(SQLiteDatabase.quote(assetIdentifier)) AS identifier
+                        FROM \(SQLiteDatabase.quote(schema.assetTable))
+                        WHERE \(SQLiteDatabase.quote(schema.assetID)) = ?
                         """, [.integer(assetID)]).first?.string("identifier"),
                       !identifier.isEmpty else {
                     throw SchemaError(message: "Missing asset identifier for library asset \(assetID).")
@@ -238,10 +238,10 @@ final class QueueUpdater {
         table: String,
         attributes: [(String, SQLiteValue)]
     ) throws {
-        let columns = attributes.map { schema.quote($0.0) }.joined(separator: ", ")
+        let columns = attributes.map { SQLiteDatabase.quote($0.0) }.joined(separator: ", ")
         let placeholders = Array(repeating: "?", count: attributes.count).joined(separator: ", ")
         try db.execute(
-            "INSERT INTO \(schema.quote(table)) (\(columns)) VALUES (\(placeholders))",
+            "INSERT INTO \(SQLiteDatabase.quote(table)) (\(columns)) VALUES (\(placeholders))",
             attributes.map(\.1)
         )
     }
@@ -263,11 +263,7 @@ final class QueueUpdater {
 
     private func tableInfo(_ table: String) throws -> [ColumnInfo] {
         if let cached = tableInfoCache[table] { return cached }
-        let quoted = "\"\(table.replacingOccurrences(of: "\"", with: "\"\""))\""
-        let info = try db.query("PRAGMA table_info(\(quoted))").compactMap { row -> ColumnInfo? in
-            guard let name = row.string("name") else { return nil }
-            return ColumnInfo(name: name, notNull: row.int64("notnull") == 1, defaultValue: row["dflt_value"] ?? .null)
-        }
+        let info = try db.tableInfo(table)
         tableInfoCache[table] = info
         return info
     }
@@ -282,13 +278,13 @@ final class QueueUpdater {
         if let entity = try primaryKeyEntity(table) {
             let first = entity.max + 1
             try db.execute(
-                "UPDATE \(schema.quote("Z_PRIMARYKEY")) SET \(schema.quote("Z_MAX")) = ? WHERE \(schema.quote("Z_ENT")) = ?",
+                "UPDATE \(SQLiteDatabase.quote("Z_PRIMARYKEY")) SET \(SQLiteDatabase.quote("Z_MAX")) = ? WHERE \(SQLiteDatabase.quote("Z_ENT")) = ?",
                 [.integer(first + Int64(count) - 1), .integer(entity.entity)]
             )
             return (0..<count).map { first + Int64($0) }
         }
 
-        let row = try db.query("SELECT MAX(\(schema.quote(column))) AS max_pk FROM \(schema.quote(table))").first
+        let row = try db.query("SELECT MAX(\(SQLiteDatabase.quote(column))) AS max_pk FROM \(SQLiteDatabase.quote(table))").first
         let maxPK = row?.int64("max_pk") ?? 0
         return (0..<count).map { maxPK + 1 + Int64($0) }
     }
@@ -326,9 +322,9 @@ final class QueueUpdater {
     private func nextMemberOrder(_ schema: LibrarySchema, queueID: Int64) throws -> Int64 {
         guard let orderColumn = schema.memberOrder else { return 0 }
         let row = try db.query("""
-            SELECT MAX(\(schema.quote(orderColumn))) AS max_order
-            FROM \(schema.quote(schema.memberTable))
-            WHERE \(schema.quote(schema.memberCollectionID)) = ?
+            SELECT MAX(\(SQLiteDatabase.quote(orderColumn))) AS max_order
+            FROM \(SQLiteDatabase.quote(schema.memberTable))
+            WHERE \(SQLiteDatabase.quote(schema.memberCollectionID)) = ?
             """, [.integer(queueID)]).first
         return (row?.int64("max_order") ?? 0) + 1
     }

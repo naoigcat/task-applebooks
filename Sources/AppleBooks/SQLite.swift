@@ -52,6 +52,12 @@ struct SQLiteError: LocalizedError {
     var errorDescription: String? { message }
 }
 
+struct ColumnInfo {
+    let name: String
+    let notNull: Bool
+    let defaultValue: SQLiteValue
+}
+
 final class SQLiteDatabase {
     private let handle: OpaquePointer
 
@@ -69,18 +75,10 @@ final class SQLiteDatabase {
     deinit { sqlite3_close(handle) }
 
     func execute(_ sql: String, _ values: [SQLiteValue] = []) throws {
-        var statement: OpaquePointer?
-        let prepareResult = sql.withCString {
-            sqlite3_prepare_v2(handle, $0, -1, &statement, nil)
+        try withStatement(sql, values) { statement in
+            let result = sqlite3_step(statement)
+            guard result == SQLITE_DONE else { throw SQLiteError(message: errorMessage()) }
         }
-        guard prepareResult == SQLITE_OK, let statement else {
-            throw SQLiteError(message: errorMessage())
-        }
-        defer { sqlite3_finalize(statement) }
-
-        try bind(values, to: statement)
-        let result = sqlite3_step(statement)
-        guard result == SQLITE_DONE else { throw SQLiteError(message: errorMessage()) }
     }
 
     func setBusyTimeout(_ milliseconds: Int32) throws {
@@ -90,6 +88,28 @@ final class SQLiteDatabase {
     }
 
     func query(_ sql: String, _ values: [SQLiteValue] = []) throws -> [SQLiteRow] {
+        try withStatement(sql, values) { statement in
+            var rows: [SQLiteRow] = []
+            while true {
+                let result = sqlite3_step(statement)
+                if result == SQLITE_DONE { return rows }
+                guard result == SQLITE_ROW else { throw SQLiteError(message: errorMessage()) }
+
+                var row: [String: SQLiteValue] = [:]
+                for index in 0..<sqlite3_column_count(statement) {
+                    guard let name = sqlite3_column_name(statement, index) else { continue }
+                    row[String(cString: name)] = columnValue(statement, index: index)
+                }
+                rows.append(SQLiteRow(row))
+            }
+        }
+    }
+
+    private func withStatement<T>(
+        _ sql: String,
+        _ values: [SQLiteValue],
+        _ body: (OpaquePointer) throws -> T
+    ) throws -> T {
         var statement: OpaquePointer?
         let prepareResult = sql.withCString {
             sqlite3_prepare_v2(handle, $0, -1, &statement, nil)
@@ -100,18 +120,21 @@ final class SQLiteDatabase {
         defer { sqlite3_finalize(statement) }
 
         try bind(values, to: statement)
-        var rows: [SQLiteRow] = []
-        while true {
-            let result = sqlite3_step(statement)
-            if result == SQLITE_DONE { return rows }
-            guard result == SQLITE_ROW else { throw SQLiteError(message: errorMessage()) }
+        return try body(statement)
+    }
 
-            var row: [String: SQLiteValue] = [:]
-            for index in 0..<sqlite3_column_count(statement) {
-                guard let name = sqlite3_column_name(statement, index) else { continue }
-                row[String(cString: name)] = columnValue(statement, index: index)
-            }
-            rows.append(SQLiteRow(row))
+    static func quote(_ identifier: String) -> String {
+        "\"\(identifier.replacingOccurrences(of: "\"", with: "\"\""))\""
+    }
+
+    func tableInfo(_ table: String) throws -> [ColumnInfo] {
+        try query("PRAGMA table_info(\(Self.quote(table)))").compactMap { row in
+            guard let name = row.string("name") else { return nil }
+            return ColumnInfo(
+                name: name,
+                notNull: row.int64("notnull") == 1,
+                defaultValue: row["dflt_value"] ?? .null
+            )
         }
     }
 

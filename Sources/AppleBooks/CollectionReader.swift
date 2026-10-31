@@ -59,9 +59,9 @@ struct CollectionReader {
 
     private func query(for schema: LibrarySchema) -> String {
         var selects = [
-            "c.\(schema.quote(schema.collectionID)) AS \(schema.quote("collection_id"))",
-            "c.\(schema.quote(schema.collectionTitle)) AS \(schema.quote("collection_title"))",
-            "m.\(schema.quote(schema.memberPK)) AS \(schema.quote("member_pk"))"
+            "c.\(SQLiteDatabase.quote(schema.collectionID)) AS \(SQLiteDatabase.quote("collection_id"))",
+            "c.\(SQLiteDatabase.quote(schema.collectionTitle)) AS \(SQLiteDatabase.quote("collection_title"))",
+            "m.\(SQLiteDatabase.quote(schema.memberPK)) AS \(SQLiteDatabase.quote("member_pk"))"
         ]
         let optional: [(String, String?, String)] = [
             ("a", schema.assetTitle, "asset_title"),
@@ -73,23 +73,23 @@ struct CollectionReader {
         ]
         selects += optional.compactMap { tableAlias, column, alias in
             guard let column else { return nil }
-            return "\(tableAlias).\(schema.quote(column)) AS \(schema.quote(alias))"
+            return "\(tableAlias).\(SQLiteDatabase.quote(column)) AS \(SQLiteDatabase.quote(alias))"
         }
 
         let orderColumn = schema.memberOrder.map {
-            "m.\(schema.quote($0))"
-        } ?? "a.\(schema.quote(schema.assetTitle ?? schema.assetID))"
+            "m.\(SQLiteDatabase.quote($0))"
+        } ?? "a.\(SQLiteDatabase.quote(schema.assetTitle ?? schema.assetID))"
 
         return """
         SELECT \(selects.joined(separator: ",\n          "))
-        FROM \(schema.quote(schema.collectionTable)) c
-        LEFT JOIN \(schema.quote(schema.memberTable)) m
-          ON m.\(schema.quote(schema.memberCollectionID)) = c.\(schema.quote(schema.collectionID))
-        LEFT JOIN \(schema.quote(schema.assetTable)) a
-          ON a.\(schema.quote(schema.assetID)) = m.\(schema.quote(schema.memberAssetID))
-        WHERE c.\(schema.quote(schema.collectionTitle)) IS NOT NULL
+        FROM \(SQLiteDatabase.quote(schema.collectionTable)) c
+        LEFT JOIN \(SQLiteDatabase.quote(schema.memberTable)) m
+          ON m.\(SQLiteDatabase.quote(schema.memberCollectionID)) = c.\(SQLiteDatabase.quote(schema.collectionID))
+        LEFT JOIN \(SQLiteDatabase.quote(schema.assetTable)) a
+          ON a.\(SQLiteDatabase.quote(schema.assetID)) = m.\(SQLiteDatabase.quote(schema.memberAssetID))
+        WHERE c.\(SQLiteDatabase.quote(schema.collectionTitle)) IS NOT NULL
           AND \(schema.activeCollectionCondition)
-        ORDER BY LOWER(c.\(schema.quote(schema.collectionTitle))), \(orderColumn)
+        ORDER BY LOWER(c.\(SQLiteDatabase.quote(schema.collectionTitle))), \(orderColumn)
         """
     }
 
